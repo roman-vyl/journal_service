@@ -11,7 +11,19 @@ It never interprets events, never reconstructs them from internal state snapshot
 never makes trading decisions, and never calls Strategy Engine, Strategy Runtime,
 ABI or Market Data Service. No trading service depends on it.
 
-Status: architecture only. No code yet.
+Status: first slice implemented (Runtime `live_entry_evaluated` ingest, `GET /health`).
+bbb_stack wiring is a separate later step.
+
+Run locally:
+
+```bash
+pip install -e '.[dev]'
+JOURNAL_RUNTIME_SOURCE_PATH=/path/to/runtime.jsonl \
+JOURNAL_DB_PATH=/path/to/journal/journal.sqlite3 \
+journal-service            # optional: JOURNAL_POLL_INTERVAL_S, JOURNAL_BATCH_SIZE, JOURNAL_HOST, JOURNAL_PORT (8097)
+```
+
+Checks: `ruff check .`, `ruff format --check .`, `mypy`, `pytest`.
 
 - `openspec/changes/journal-service-foundation-v1`: purpose, boundaries, stack.
 - `openspec/changes/runtime-live-entry-first-event-v1`: the first end-to-end event,
