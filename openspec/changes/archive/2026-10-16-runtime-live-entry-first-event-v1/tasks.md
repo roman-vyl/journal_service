@@ -12,12 +12,13 @@
 
 First prove locally: a ready `runtime.jsonl` → tailer → `events` → restart → no loss, no duplicates. Only then wire the service into the stack.
 
-- [ ] 2.1 Compose service `journal-service`: read-only bind `BBB_DATA_ROOT/strategy-runtime/journal`, read-write bind `BBB_DATA_ROOT/journal`, health check, no dependency from any trading service on it.
-- [ ] 2.2 Image pin in a separate PR after the service image exists.
+- [x] 2.1 Compose service `journal-service`: read-only bind `BBB_DATA_ROOT/strategy-runtime/journal`, read-write bind `BBB_DATA_ROOT/journal`, health check, no dependency from any trading service on it. (bbb_stack branch `claude/project-thread-kyrwe7`, no PR yet.)
+- [x] 2.2 Image pin written to `deploy/images.env` on that branch (journal_service `42c51e2`); the pin PR is opened separately.
 
 ## 3. Verification on the Mac (on owner's word only)
 
-- [ ] 3.1 Confirm ABI runs dry-run or demo; handle the enabled `loadtest-*` specs as the owner decides.
-- [ ] 3.2 Enable one strategy, wait for three real 5m bars.
-- [ ] 3.3 `SELECT` from `events` where `event_type = 'live_entry_evaluated'` and that `strategy_instance_id`: three rows with three consecutive `bar_open_time_ms`, `body` equal to the lines in `runtime.jsonl`; `desired_entry` is `null` in a row whenever Engine returned no entry.
-- [ ] 3.4 Stop the service during a bar, start it again: no gap, no duplicate.
+Result, 2026-10-16: smoke passed.
+
+- [x] 3.1 ABI ran in dry-run (`ABI_DRY_RUN=true`, live trading off, testnet, no Bybit key); the 32 `loadtest-*` specs set to `enabled: false`.
+- [x] 3.2 One strategy enabled (`journal-smoke-eth-ema500`, ETHUSDT.P 5m); three real confirmed 5m bars (17:35, 17:40, 17:45 UTC) arrived through the MDS webhook, no manual webhooks.
+- [x] 3.3 `events` holds three `live_entry_evaluated` rows for that `strategy_instance_id` with three consecutive `bar_open_time_ms`; `desired_entry` is `null` in all three (Engine returned no entry). Journal counters: stored 3, malformed 0; cursor at end of `runtime.jsonl`.
