@@ -56,3 +56,7 @@ idempotently by (`source`, `event_id`).
 The service MUST expose `GET /health` with status, cursor offset, last ingested
 `occurred_at`, and skipped and malformed line counts, and no other HTTP endpoint in
 this change.
+
+#### Scenario: Health after ingestion
+- **WHEN** the service has ingested events, skipped unrelated lines and met malformed ones
+- **THEN** `GET /health` reports the cursor offset, the last ingested `occurred_at` and the skipped and malformed counts, and any other path answers 404
