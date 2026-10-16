@@ -48,6 +48,19 @@ is down, trading continues and it catches up from the journal files on restart.
 `BBB_DATA_ROOT/journal/journal.sqlite3`, WAL mode. Only this service opens it for
 writing; nobody else opens the file. Readers use the query API.
 
+Canonical data layout (each directory is owned by exactly one service; there is no
+`journal_service/` directory under the data root, `journal/` is this service's
+namespace):
+
+```text
+BBB_DATA_ROOT/                      # /Users/mcroma/BBB_data on the Mac
+├── strategy-runtime/
+│   └── journal/
+│       └── runtime.jsonl          # source, owned by Runtime, read-only here
+└── journal/
+    └── journal.sqlite3            # owned by the Central Journal
+```
+
 ### F5. Append-only, idempotent
 
 Events are stored at most once, keyed by (`source`, `event_id`); the cursor moves in
