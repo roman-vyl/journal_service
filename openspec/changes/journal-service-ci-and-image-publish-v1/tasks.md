@@ -1,11 +1,11 @@
 ## 1. Files (apply, only after the owner has reviewed this change)
 
-- [ ] 1.1 `.github/workflows/ci.yml` as in D1.
-- [ ] 1.2 `.github/workflows/docker-publish.yml` as in D3.
-- [ ] 1.3 `Makefile` with `lint`, `format-check`, `typecheck`, `test`, `verify` (D2).
-- [ ] 1.4 `.dockerignore` allowlist (D5).
-- [ ] 1.5 `openspec validate --all --strict` passes locally for all active changes; fix documentation if it does not.
-- [ ] 1.6 `make verify` passes locally; `docker build` of the image succeeds with the new `.dockerignore` (context shrinks, no `.venv`).
+- [x] 1.1 `.github/workflows/ci.yml` as in D1.
+- [x] 1.2 `.github/workflows/docker-publish.yml` as in D3.
+- [x] 1.3 `Makefile` with `lint`, `format-check`, `typecheck`, `test`, `verify` (D2).
+- [x] 1.4 `.dockerignore` allowlist (D5).
+- [x] 1.5 `openspec validate --all --strict` passes locally for all active changes; fix documentation if it does not.
+- [x] 1.6 `make verify` passes locally; `docker build` of the image succeeds with the new `.dockerignore` (context shrinks, no `.venv`).
 
 ## 2. Verification (needs the branch merged to `main`, on the owner's word)
 
