@@ -3,9 +3,11 @@
 ### Requirement: Ingest Runtime live-entry events
 
 The service MUST read the Runtime processing journal read-only and store every
-`live_entry_evaluated` event with `schema_version >= 2` as one row of `events` with
+`live_entry_evaluated` event with `schema_version >= 2` that passes the minimal
+indexable contract as one row of `events` with the ingest source name
 `source = 'runtime'`, the line kept unchanged as `body`, and `strategy_instance_id`,
-`bar_open_time_ms` and `occurred_at` extracted for indexing.
+`bar_open_time_ms` and `occurred_at` extracted for indexing. It MUST NOT validate or
+interpret `desired_entry`.
 
 #### Scenario: Non-null and null desired entry
 - **WHEN** the journal contains `live_entry_evaluated` events with a desired entry and with `desired_entry = null`
@@ -16,8 +18,16 @@ The service MUST read the Runtime processing journal read-only and store every
 - **THEN** it is skipped and counted, and ingestion continues
 
 #### Scenario: Malformed complete line
-- **WHEN** a complete line is not valid JSON or lacks `event_id`, `event_type` or `occurred_at`
-- **THEN** it is logged and skipped, and ingestion continues
+- **WHEN** a complete line is not valid JSON, or a `live_entry_evaluated` line lacks any of `event_id`, `schema_version`, `occurred_at`, `strategy_instance_id` or `payload.bar_open_time_ms`, or one of them has the wrong structural type
+- **THEN** it is logged, counted as malformed and skipped, and ingestion continues
+
+#### Scenario: Structurally valid event with a meaningless desired entry
+- **WHEN** a `live_entry_evaluated` line passes the structural check but `desired_entry` has unexpected content
+- **THEN** it is stored with `body` unchanged, because the Central Journal does not validate or interpret `desired_entry`
+
+#### Scenario: Envelope source differs from ingest source
+- **WHEN** a Runtime line carries an envelope `source` such as `strategy_runtime.committed_bar_orchestrator`
+- **THEN** the stored `source` column is the ingest source name `runtime`, and the envelope value stays only inside `body`
 
 ### Requirement: Exactly-once storage across restarts
 

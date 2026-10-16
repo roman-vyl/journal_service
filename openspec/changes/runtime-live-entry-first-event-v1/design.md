@@ -17,6 +17,19 @@ Runtime envelope: `schema_version`, `event_id`, `event_type`, `occurred_at`,
 `locked_exit_profile`; prices as exact decimal text). The Central Journal checks only
 what it indexes; it does not validate trading meaning.
 
+Minimal indexable contract. An event is accepted only if these are present with the
+expected structural type: `event_id` (non-empty string), `event_type` (string),
+`schema_version` (integer), `occurred_at` (non-empty string), `strategy_instance_id`
+(non-empty string) and `payload.bar_open_time_ms` (integer). Anything else is a
+malformed line: logged, counted, skipped. `desired_entry` is not validated and not
+interpreted; it stays inside `body`.
+
+Two different `source` values exist. The envelope field `source` inside a Runtime
+line (e.g. `strategy_runtime.committed_bar_orchestrator`) is Runtime's own and is
+kept only inside `body`. The `source` column and cursor key (`'runtime'`) name the
+Central Journal's ingest source, i.e. which journal file the line came from; it never
+comes from the envelope.
+
 ### E2. Tailer
 
 - Persisted cursor per source: file identity (device + inode) and byte offset after
@@ -33,7 +46,7 @@ what it indexes; it does not validate trading meaning.
 
 ```sql
 CREATE TABLE events (
-  source               TEXT    NOT NULL,   -- 'runtime'
+  source               TEXT    NOT NULL,   -- ingest source name, 'runtime'
   event_id             TEXT    NOT NULL,
   event_type           TEXT    NOT NULL,
   schema_version       INTEGER NOT NULL,
