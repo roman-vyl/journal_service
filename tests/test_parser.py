@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from journal_service.parser import LineOutcome, parse_line
-from tests.support import ENTRY, dump, live_entry
+from tests.support import ENTRY, applied, dump, live_entry
 
 
 def parse(record: dict[str, Any]) -> LineOutcome:
@@ -100,3 +100,64 @@ def test_envelope_source_is_not_part_of_the_row() -> None:
     assert parsed.row is not None
     assert "source" not in {f for f in parsed.row.__slots__}
     assert json.loads(parsed.row.body)["source"] == "strategy_runtime.committed_bar_orchestrator"
+
+
+def test_entry_package_applied_is_stored_with_cycle_and_bar_and_body_unchanged() -> None:
+    line = dump(applied("a1", 1300, cycle="cycle-7"))
+    parsed = parse_line(line.encode())
+    assert parsed.outcome is LineOutcome.ACCEPTED
+    assert parsed.row is not None
+    assert parsed.row.event_type == "entry_package_applied"
+    assert parsed.row.strategy_instance_id == "ema_pullback:abc"
+    assert parsed.row.trade_cycle_id == "cycle-7"
+    assert parsed.row.bar_open_time_ms == 1300
+    assert parsed.row.body == line
+    payload = json.loads(parsed.row.body)["payload"]
+    assert payload["order_link_id"] == "abi-link-1"
+    assert payload["order_id"] == "bybit-order-1"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"trigger_price": None, "stop_loss": None, "take_profit": None, "quantity": None},
+        {"order_link_id": None, "order_id": None},
+        {"trigger_price": "not a number", "order_id": 42},
+    ],
+)
+def test_entry_package_applied_values_and_ids_are_not_validated(changes: dict[str, Any]) -> None:
+    line = dump(applied("a1", **changes))
+    parsed = parse_line(line.encode())
+    assert parsed.outcome is LineOutcome.ACCEPTED
+    assert parsed.row is not None
+    assert parsed.row.body == line
+
+
+def _applied_without(key: str) -> dict[str, Any]:
+    record = applied("a1")
+    del record["payload"][key]
+    return record
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        _applied_without("trade_cycle_id"),
+        applied("a1", cycle=None),
+        applied("a1", cycle=""),
+        applied("a1", cycle=7),
+        _applied_without("bar_open_time_ms"),
+        applied("a1", bar_open_time_ms=None),
+        applied("a1", bar_open_time_ms="1000"),
+        {**applied("a1"), "event_id": ""},
+        {**applied("a1"), "occurred_at": None},
+        {**applied("a1"), "strategy_instance_id": "  "},
+        {**applied("a1"), "payload": []},
+    ],
+)
+def test_structurally_invalid_entry_package_applied_is_malformed(record: dict[str, Any]) -> None:
+    assert parse(record) is LineOutcome.MALFORMED
+
+
+def test_entry_package_applied_with_old_schema_is_skipped() -> None:
+    assert parse({**applied("a1"), "schema_version": 1}) is LineOutcome.SKIPPED

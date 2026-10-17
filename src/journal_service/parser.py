@@ -12,6 +12,8 @@ from enum import StrEnum
 from typing import Final, TypeGuard
 
 LIVE_ENTRY_EVALUATED: Final = "live_entry_evaluated"
+ENTRY_PACKAGE_APPLIED: Final = "entry_package_applied"
+INGESTED_EVENT_TYPES: Final = frozenset({LIVE_ENTRY_EVALUATED, ENTRY_PACKAGE_APPLIED})
 MIN_SCHEMA_VERSION: Final = 2
 
 
@@ -68,7 +70,7 @@ def parse_line(raw: bytes) -> ParsedLine:
         return _malformed("not a JSON object")
 
     event_type = record.get("event_type")
-    if event_type != LIVE_ENTRY_EVALUATED:
+    if not isinstance(event_type, str) or event_type not in INGESTED_EVENT_TYPES:
         return _skipped("event type not ingested")
     schema_version = record.get("schema_version")
     if not _is_int(schema_version):
@@ -85,16 +87,22 @@ def parse_line(raw: bytes) -> ParsedLine:
     bar_open_time_ms = payload.get("bar_open_time_ms")
     if not _is_int(bar_open_time_ms):
         return _malformed("payload.bar_open_time_ms is not an integer")
+    trade_cycle_id: str | None = None
+    if event_type == ENTRY_PACKAGE_APPLIED:
+        cycle = payload.get("trade_cycle_id")
+        if not isinstance(cycle, str) or not cycle.strip():
+            return _malformed("payload.trade_cycle_id is not a non-empty string")
+        trade_cycle_id = cycle
 
     return ParsedLine(
         LineOutcome.ACCEPTED,
         row=EventRow(
             event_id=record["event_id"],
-            event_type=LIVE_ENTRY_EVALUATED,
+            event_type=event_type,
             schema_version=schema_version,
             occurred_at=record["occurred_at"],
             strategy_instance_id=record["strategy_instance_id"],
-            trade_cycle_id=None,
+            trade_cycle_id=trade_cycle_id,
             bar_open_time_ms=bar_open_time_ms,
             body=body,
         ),
