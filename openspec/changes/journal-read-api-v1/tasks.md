@@ -18,4 +18,4 @@
 ## 4. Docs
 
 - [ ] 4.1 README: the two routes and examples.
-- [ ] 4.2 Check the "Stored-event contract" table in `design.md` against a real `runtime.jsonl` line (null and non-null `desired_entry`) and fix any path or type that differs.
+- [x] 4.2 Stored-event contract checked against real data and the real producer code (2026-10-17): archived `runtime.jsonl` from Mac (Runtime 15e7fed/33be4e9) has 11 `live_entry_evaluated` lines, 10 with `desired_entry = null` and 1 with an object; `events` holds 11 rows with 11 distinct `event_id`, `body` byte-equal to each line, `bar_open_time_ms` = `payload.bar_open_time_ms`, `trade_cycle_id` NULL; prices are decimal strings with full precision (e.g. `planned_entry_price "2436.996757183465"`). No real bar was evaluated twice; that case is covered by an end-to-end run of the real Runtime `JsonlProcessingJournal` into the real Tailer (null, signal, same bar twice, skipped bar: 4 rows, bodies equal to lines, 20-digit price kept, skipped bar absent).
