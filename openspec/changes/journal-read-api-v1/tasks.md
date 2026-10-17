@@ -18,3 +18,4 @@
 ## 4. Docs
 
 - [ ] 4.1 README: the two routes and examples.
+- [ ] 4.2 Check the "Stored-event contract" table in `design.md` against a real `runtime.jsonl` line (null and non-null `desired_entry`) and fix any path or type that differs.

@@ -77,3 +77,12 @@ Adding query endpoints SHALL NOT change which events are ingested, the stored ro
 #### Scenario: Ingestion unchanged
 - **WHEN** the query endpoints are present
 - **THEN** only `live_entry_evaluated` events with `schema_version >= 2` are stored, as before
+
+### Requirement: Stored-event contract is documented
+The change SHALL document, in `design.md`, the `events` table columns and indexes, the shape of
+`body`, and for each field a reader needs (strategy, bar, market, side, planned entry, initial
+stop, initial take, no-signal marker) its path in `body`, its type, and which component writes it.
+
+#### Scenario: Reader locates a projection field
+- **WHEN** a reader needs the initial stop of an evaluated bar
+- **THEN** the document names `body.payload.desired_entry.initial_stop_price`, its decimal-text type and its producer

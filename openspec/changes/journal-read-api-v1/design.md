@@ -62,6 +62,38 @@ stays in WAL mode so reads do not block the writer. The tailer remains the only 
 No CORS, no auth (local network, as the rest of the stack; the frontend uses its dev proxy), no
 caching, no pagination token beyond `from_bar_ms`/`truncated`.
 
+## Stored-event contract (what the database holds and where each field comes from)
+
+Database: one SQLite file (`journal.sqlite3`, WAL), table `events`, primary key
+(`source`, `event_id`). Columns: `source` (always `runtime`), `event_id`, `event_type`,
+`schema_version`, `occurred_at` (ISO text), `strategy_instance_id`, `trade_cycle_id` (null for
+live-entry events), `bar_open_time_ms` (INTEGER, copied from `payload.bar_open_time_ms`),
+`body` (the Runtime journal line as TEXT, unchanged), `ingested_at_ms`. Indexes:
+(`strategy_instance_id`, `bar_open_time_ms`), (`strategy_instance_id`, `occurred_at`),
+(`strategy_instance_id`, `trade_cycle_id`), (`event_type`, `occurred_at`). Table `ingest_cursor`
+holds the file identity and byte offset. This change adds no table, column or index.
+
+Producer: Runtime writes one `live_entry_evaluated` line per evaluated live-entry bar
+(`strategy_runtime/utility/processing_journal/jsonl_adapter.py`, `live_entry_evaluated`). The
+`desired_entry` object is the Engine live-entry answer after Runtime's ABI codec
+(`runtime/abi/entry_package_codec.py`), which carries prices as decimal strings.
+
+| Need | Column or path in `body` | Type | Written by |
+|---|---|---|---|
+| strategy | `strategy_instance_id` (column and `body.strategy_instance_id`) | text | Runtime |
+| bar | `bar_open_time_ms` (column and `body.payload.bar_open_time_ms`) | integer, ms | Runtime |
+| market | `body.payload.instrument`, `body.payload.timeframe` | text | Runtime |
+| no signal | `body.payload.desired_entry` is `null` | null | Runtime |
+| side | `body.payload.desired_entry.side` | text | Engine via Runtime |
+| desired entry | `body.payload.desired_entry.planned_entry_price` | decimal text | Engine via Runtime |
+| initial stop | `body.payload.desired_entry.initial_stop_price` | decimal text | Engine via Runtime |
+| initial take | `body.payload.desired_entry.initial_take_price` | decimal text | Engine via Runtime |
+| plan bar | `body.payload.desired_entry.source_plan_bar_open_time_ms` | integer, ms | Engine via Runtime |
+
+The journal service does not read or convert any `desired_entry` field; readers take them from
+`body` as shown. A bar with no stored event is "not evaluated", which differs from a stored
+event with `desired_entry = null` ("evaluated, no signal").
+
 ## Risks
 
 - A burst of stored events for one instance with a wide range returns up to 5000 rows; the
