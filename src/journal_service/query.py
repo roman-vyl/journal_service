@@ -8,9 +8,6 @@ from contextlib import closing
 from pathlib import Path
 from typing import Any
 
-DEFAULT_LIMIT = 1000
-MAX_LIMIT = 5000
-
 
 class InvalidQuery(ValueError):
     """A request parameter is missing or invalid (answered as HTTP 400)."""
@@ -39,10 +36,8 @@ def events_for_instance(path: Path, params: dict[str, str]) -> dict[str, Any]:
     from_bar = _int_param(params, "from_bar_ms")
     to_bar = _int_param(params, "to_bar_ms")
     limit = _int_param(params, "limit")
-    if limit is None:
-        limit = DEFAULT_LIMIT
-    if limit < 1 or limit > MAX_LIMIT:
-        raise InvalidQuery(f"limit must be between 1 and {MAX_LIMIT}")
+    if limit is not None and limit < 1:
+        raise InvalidQuery("limit must be at least 1")
     if from_bar is not None and to_bar is not None and from_bar > to_bar:
         raise InvalidQuery("from_bar_ms must not be greater than to_bar_ms")
 
@@ -61,8 +56,10 @@ def events_for_instance(path: Path, params: dict[str, str]) -> dict[str, Any]:
     if to_bar is not None:
         sql.append("AND bar_open_time_ms <= ?")
         args.append(to_bar)
-    sql.append("ORDER BY bar_open_time_ms, occurred_at, event_id LIMIT ?")
-    args.append(limit + 1)
+    sql.append("ORDER BY bar_open_time_ms, occurred_at, event_id")
+    if limit is not None:
+        sql.append("LIMIT ?")
+        args.append(limit + 1)
 
     with closing(_connect(path)) as db:
         rows = db.execute(" ".join(sql), args).fetchall()
@@ -78,7 +75,7 @@ def events_for_instance(path: Path, params: dict[str, str]) -> dict[str, Any]:
         }
         for r in rows[:limit]
     ]
-    return {"events": events, "truncated": len(rows) > limit}
+    return {"events": events, "truncated": limit is not None and len(rows) > limit}
 
 
 def list_strategy_instances(path: Path) -> dict[str, Any]:

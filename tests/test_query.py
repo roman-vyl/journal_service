@@ -124,7 +124,6 @@ def test_limit_truncates_oldest_first(api: Api) -> None:
         "strategy_instance_id=s1&to_bar_ms=1.5",
         "strategy_instance_id=s1&limit=abc",
         "strategy_instance_id=s1&limit=0",
-        "strategy_instance_id=s1&limit=5001",
         "strategy_instance_id=s1&from_bar_ms=10&to_bar_ms=5",
     ],
 )
@@ -134,12 +133,16 @@ def test_invalid_requests_are_400(api: Api, query: str) -> None:
     assert isinstance(body["error"], str) and body["error"]
 
 
-def test_default_limit_is_1000_and_max_5000_accepted(api: Api) -> None:
-    api.ingest(*[live_entry(f"e{i}", bar(i), instance="s1") for i in range(1, 1201)])
-    _, body = api.get("/v1/events?strategy_instance_id=s1")
-    assert len(body["events"]) == 1000 and body["truncated"] is True
-    status, body = api.get("/v1/events?strategy_instance_id=s1&limit=5000")
-    assert status == 200 and len(body["events"]) == 1200 and body["truncated"] is False
+def test_range_returns_every_record_without_limit(api: Api) -> None:
+    count = 12_000
+    api.ingest(*[live_entry(f"e{i}", bar(i), instance="s1") for i in range(1, count + 1)])
+    status, body = api.get("/v1/events?strategy_instance_id=s1")
+    assert status == 200 and body["truncated"] is False
+    assert [e["bar_open_time_ms"] for e in body["events"]] == [bar(i) for i in range(1, count + 1)]
+    _, part = api.get(
+        f"/v1/events?strategy_instance_id=s1&from_bar_ms={bar(101)}&to_bar_ms={bar(9100)}"
+    )
+    assert len(part["events"]) == 9000 and part["truncated"] is False
 
 
 def test_unknown_path_is_404(api: Api) -> None:

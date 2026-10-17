@@ -15,7 +15,7 @@ server is a stdlib `ThreadingHTTPServer` in `health.py`; the tailer owns the wri
 
 `strategy_instance_id` is required. `event_type` defaults to no filter (only
 `live_entry_evaluated` exists today). `from_bar_ms` and `to_bar_ms` are inclusive bar open times
-in milliseconds. `limit` defaults to 1000 and may not exceed 5000. Any invalid value is HTTP
+in milliseconds. `limit` is optional and has no default and no maximum: without it the answer holds every stored event of the range. Any invalid value is HTTP
 400 `{"error": "<message>"}`.
 
 ### Q2. Response of `/v1/events`
@@ -35,7 +35,7 @@ in milliseconds. `limit` defaults to 1000 and may not exceed 5000. Any invalid v
 
 Order: `bar_open_time_ms` ascending, then `occurred_at` ascending, then `event_id`. All rows
 are returned, including several rows for one bar; choosing among them is the client's job. The
-service reads `limit + 1` rows to set `truncated`. `body` is the stored text parsed, never
+`truncated` is false unless the client passed `limit` and more matching rows exist (the service then reads `limit + 1` rows). `body` is the stored text parsed, never
 re-derived: the service does not look inside `payload`, so `desired_entry = null` and a
 non-null entry are returned the same way.
 
@@ -96,7 +96,6 @@ event with `desired_entry = null` ("evaluated, no signal").
 
 ## Risks
 
-- A burst of stored events for one instance with a wide range returns up to 5000 rows; the
-  client asks for a bounded window (30 days of 5m bars is 8640 bars, so the client pages by
-  `from_bar_ms` when `truncated` is true).
+- A wide range returns every event of the range (about 8640 bars for 30 days of 5m, more if a
+  bar is evaluated twice); V1 accepts this and the client may pass `limit` to bound it.
 - `body` can be large if Runtime later adds fields; the response is the stored line as is.

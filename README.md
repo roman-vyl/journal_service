@@ -26,12 +26,12 @@ journal-service            # optional: JOURNAL_POLL_INTERVAL_S, JOURNAL_BATCH_SI
 Read API (read-only, local network, no auth; `body` is the stored line parsed, unchanged):
 
 ```bash
-curl 'http://127.0.0.1:8097/v1/events?strategy_instance_id=<id>&from_bar_ms=<ms>&to_bar_ms=<ms>&limit=1000'
+curl 'http://127.0.0.1:8097/v1/events?strategy_instance_id=<id>&from_bar_ms=<ms>&to_bar_ms=<ms>'
 curl 'http://127.0.0.1:8097/v1/strategy-instances'
 ```
 
 `/v1/events` returns `{"events": [...], "truncated": bool}` ordered by bar, `occurred_at`, `event_id`
-(bounds inclusive, `limit` default 1000, max 5000, invalid input is HTTP 400). A bar with no
+(bounds inclusive; without `limit` every event of the range is returned, `truncated` is true only when an optional `limit` cut the answer; invalid input is HTTP 400). A bar with no
 stored event is absent from the answer; an event with `payload.desired_entry = null` means
 "evaluated, no signal".
 

@@ -28,17 +28,16 @@ then `occurred_at`, then `event_id`. Each returned event SHALL carry `event_id`,
 - **WHEN** other strategy instances have events in the same bar range
 - **THEN** none of them is returned
 
-### Requirement: Bounded answers
-`limit` SHALL default to 1000 and SHALL NOT exceed 5000. The response SHALL contain
-`truncated`, true when more matching events exist than were returned.
+### Requirement: Whole range by default
+Without `limit` the service SHALL return every stored event of the instance within the range, with no maximum count. `limit` is optional; when given, the service SHALL return at most `limit` events, oldest bars first. The response SHALL contain `truncated`, true only when `limit` was given and more matching events exist.
 
-#### Scenario: More rows than the limit
+#### Scenario: Range larger than any former cap
+- **WHEN** 12000 events match the range and `limit` is not given
+- **THEN** all 12000 are returned in order and `truncated` is false
+
+#### Scenario: Optional limit
 - **WHEN** 1200 events match and `limit` is 1000
 - **THEN** 1000 events are returned, the oldest bars first, and `truncated` is true
-
-#### Scenario: Limit too large
-- **WHEN** `limit` is 5001
-- **THEN** the service answers HTTP 400 with an error message
 
 ### Requirement: Invalid requests
 A missing or empty `strategy_instance_id`, a non-integer `from_bar_ms`, `to_bar_ms` or `limit`,

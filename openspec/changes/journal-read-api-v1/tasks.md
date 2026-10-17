@@ -1,7 +1,7 @@
 ## 1. Query module
 
 - [x] 1.1 `query.py`: per-request read-only connection (`PRAGMA query_only = ON`), `events_for_instance(...)` and `list_strategy_instances()` returning plain dicts; `body` parsed from the stored text.
-- [x] 1.2 Parameter validation (required id, integers, limit 1..5000 default 1000, `from_bar_ms <= to_bar_ms`), `truncated` via `limit + 1`.
+- [x] 1.2 Parameter validation (required id, integers, optional limit >= 1, no default and no maximum, `from_bar_ms <= to_bar_ms`), `truncated` via `limit + 1`.
 
 ## 2. HTTP
 
@@ -10,7 +10,7 @@
 ## 3. Tests
 
 - [x] 3.1 Range inclusivity, ordering, other instances excluded, null and non-null `desired_entry` returned unchanged, bar evaluated twice returns both, missing bar absent.
-- [x] 3.2 Limit default, max, `truncated`, invalid parameters (400), unknown path (404).
+- [x] 3.2 Whole range of 12000 events without limit, optional limit with `truncated`, invalid parameters (400), unknown path (404).
 - [x] 3.3 `/v1/strategy-instances` counts and bar ranges, empty database.
 - [x] 3.4 Query during a tailer batch: batch stored, cursor advanced, no write by the query connection.
 - [x] 3.5 `ruff check .`, `ruff format --check .`, `mypy`, `pytest`, `openspec validate --all --strict` green.
