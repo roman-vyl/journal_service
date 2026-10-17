@@ -44,6 +44,38 @@ def live_entry(
     return record
 
 
+def applied(
+    event_id: str,
+    bar: int = 1000,
+    *,
+    cycle: Any = "cycle-1",
+    instance: str = "ema_pullback:abc",
+    **payload_changes: Any,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "trade_cycle_id": cycle,
+        "bar_open_time_ms": bar,
+        "trigger_price": "100.5",
+        "stop_loss": "99",
+        "take_profit": "103.25",
+        "quantity": "0.012",
+        "order_link_id": "abi-link-1",
+        "order_id": "bybit-order-1",
+    }
+    payload.update(payload_changes)
+    return {
+        "schema_version": 2,
+        "event_id": event_id,
+        "event_type": "entry_package_applied",
+        "occurred_at": f"2026-10-16T12:{bar % 60:02d}:30Z",
+        "source": "strategy_runtime.committed_bar_orchestrator",
+        "severity": "info",
+        "strategy_instance_id": instance,
+        "payload": payload,
+        "diagnostics": {},
+    }
+
+
 def dump(record: dict[str, Any]) -> str:
     return json.dumps(record, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 

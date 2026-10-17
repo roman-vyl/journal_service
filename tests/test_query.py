@@ -13,7 +13,7 @@ from journal_service.health import build_server
 from journal_service.stats import IngestStats
 from journal_service.storage import Store
 from journal_service.tailer import Tailer
-from tests.support import ENTRY, append, live_entry
+from tests.support import ENTRY, append, applied, live_entry
 
 STEP = 300_000
 B0 = 1_760_000_000_000
@@ -98,6 +98,26 @@ def test_bar_evaluated_twice_returns_both(api: Api) -> None:
     api.ingest(live_entry("a", bar(1)), live_entry("b", bar(1)))
     _, body = api.get("/v1/events?strategy_instance_id=ema_pullback:abc")
     assert [e["event_id"] for e in body["events"]] == ["a", "b"]
+
+
+def test_applied_entry_is_stored_with_cycle_and_returned_with_its_evaluation(api: Api) -> None:
+    evaluation = live_entry("e1", bar(1), desired_entry=ENTRY)
+    entry = applied("a1", bar(1), cycle="cycle-9")
+    api.ingest(evaluation, entry, live_entry("e2", bar(2)))
+    _, body = api.get(
+        f"/v1/events?strategy_instance_id=ema_pullback:abc&from_bar_ms={bar(1)}&to_bar_ms={bar(1)}"
+    )
+    assert [e["event_type"] for e in body["events"]] == [
+        "live_entry_evaluated",
+        "entry_package_applied",
+    ]
+    assert body["events"][1]["body"] == entry
+    db = sqlite3.connect(api.db_path)
+    rows = db.execute(
+        "SELECT trade_cycle_id, bar_open_time_ms FROM events WHERE event_id = 'a1'"
+    ).fetchall()
+    db.close()
+    assert rows == [("cycle-9", bar(1))]
 
 
 def test_other_instances_not_mixed_in(api: Api) -> None:
