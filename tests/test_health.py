@@ -2,6 +2,7 @@ import json
 import urllib.error
 import urllib.request
 from collections.abc import Iterator
+from pathlib import Path
 from threading import Thread
 
 import pytest
@@ -11,9 +12,9 @@ from journal_service.stats import IngestStats
 
 
 @pytest.fixture
-def base_url_and_stats() -> Iterator[tuple[str, IngestStats]]:
+def base_url_and_stats(tmp_path: Path) -> Iterator[tuple[str, IngestStats]]:
     stats = IngestStats(cursor_offset=10, last_occurred_at="2026-10-16T12:00:00Z")
-    server = build_server("127.0.0.1", 0, "runtime", stats)
+    server = build_server("127.0.0.1", 0, "runtime", stats, tmp_path / "j.sqlite3")
     thread = Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
@@ -54,7 +55,7 @@ def test_health_reports_cursor_last_event_and_counters(
     }
 
 
-@pytest.mark.parametrize("path", ["/", "/events", "/health/ready", "/v1/events"])
+@pytest.mark.parametrize("path", ["/", "/events", "/health/ready", "/v2/events"])
 def test_no_other_endpoint_exists(base_url_and_stats: tuple[str, IngestStats], path: str) -> None:
     base_url, _ = base_url_and_stats
     with pytest.raises(urllib.error.HTTPError) as error:

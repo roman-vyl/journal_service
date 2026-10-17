@@ -42,7 +42,7 @@ def run(config: Config) -> None:
     worker = Thread(
         target=_tail_forever, args=(tailer, stop, config.poll_interval_s), name="tailer"
     )
-    server = build_server(config.host, config.port, RUNTIME_SOURCE_NAME, stats)
+    server = build_server(config.host, config.port, RUNTIME_SOURCE_NAME, stats, config.db_path)
 
     def shutdown(_signum: int, _frame: object) -> None:
         stop.set()
