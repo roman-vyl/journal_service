@@ -13,7 +13,7 @@ from journal_service.health import build_server
 from journal_service.stats import IngestStats
 from journal_service.storage import Store
 from journal_service.tailer import Tailer
-from tests.support import ENTRY, append, applied, closed, live_entry
+from tests.support import ENTRY, append, applied, closed, live_entry, opened
 
 STEP = 300_000
 B0 = 1_760_000_000_000
@@ -252,3 +252,21 @@ def test_closure_without_bar_is_returned_only_without_bar_bounds(api: Api) -> No
     for bounds in (f"&from_bar_ms={bar(0)}", f"&to_bar_ms={bar(9)}"):
         _, body = api.get(f"/v1/events?strategy_instance_id=ema_pullback:abc{bounds}")
         assert "c1" not in [e["event_id"] for e in body["events"]]
+
+
+def test_whole_cycle_with_opening_by_trade_cycle_id(api: Api) -> None:
+    api.ingest(
+        live_entry("e1", bar(1)),
+        applied("a1", bar(1), cycle="cycle-1"),
+        opened("o1", bar(2), cycle="cycle-1"),
+        closed("c1", bar(4), cycle="cycle-1"),
+        opened("o2", None, cycle="cycle-2", entry_order_id=None),
+    )
+    _, body = api.get("/v1/events?strategy_instance_id=ema_pullback:abc&trade_cycle_id=cycle-1")
+    assert [e["event_id"] for e in body["events"]] == ["a1", "o1", "c1"]
+    assert body["events"][1]["body"] == opened("o1", bar(2), cycle="cycle-1")
+
+    _, body = api.get("/v1/events?strategy_instance_id=ema_pullback:abc")
+    assert [e["event_id"] for e in body["events"]][0] == "o2"
+    assert body["events"][0]["bar_open_time_ms"] is None
+    assert body["events"][0]["trade_cycle_id"] == "cycle-2"

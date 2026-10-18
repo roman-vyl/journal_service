@@ -13,14 +13,18 @@ from typing import Final, TypeGuard
 
 LIVE_ENTRY_EVALUATED: Final = "live_entry_evaluated"
 ENTRY_PACKAGE_APPLIED: Final = "entry_package_applied"
+TRADE_CYCLE_OPENED: Final = "trade_cycle_opened"
 TRADE_CYCLE_CLOSED: Final = "trade_cycle_closed"
 INGESTED_EVENT_TYPES: Final = frozenset(
-    {LIVE_ENTRY_EVALUATED, ENTRY_PACKAGE_APPLIED, TRADE_CYCLE_CLOSED}
+    {LIVE_ENTRY_EVALUATED, ENTRY_PACKAGE_APPLIED, TRADE_CYCLE_OPENED, TRADE_CYCLE_CLOSED}
 )
 # Types whose payload names the trade cycle it belongs to.
-CYCLE_EVENT_TYPES: Final = frozenset({ENTRY_PACKAGE_APPLIED, TRADE_CYCLE_CLOSED})
-# Types that may carry a null bar (a closure resolved outside bar processing).
-NULLABLE_BAR_EVENT_TYPES: Final = frozenset({TRADE_CYCLE_CLOSED})
+CYCLE_EVENT_TYPES: Final = frozenset(
+    {ENTRY_PACKAGE_APPLIED, TRADE_CYCLE_OPENED, TRADE_CYCLE_CLOSED}
+)
+# Types that may carry a null bar (resolved outside bar processing: a recovered
+# first fill or a closure found by the pending-close resolver).
+NULLABLE_BAR_EVENT_TYPES: Final = frozenset({TRADE_CYCLE_OPENED, TRADE_CYCLE_CLOSED})
 MIN_SCHEMA_VERSION: Final = 2
 
 
