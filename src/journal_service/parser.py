@@ -13,7 +13,14 @@ from typing import Final, TypeGuard
 
 LIVE_ENTRY_EVALUATED: Final = "live_entry_evaluated"
 ENTRY_PACKAGE_APPLIED: Final = "entry_package_applied"
-INGESTED_EVENT_TYPES: Final = frozenset({LIVE_ENTRY_EVALUATED, ENTRY_PACKAGE_APPLIED})
+TRADE_CYCLE_CLOSED: Final = "trade_cycle_closed"
+INGESTED_EVENT_TYPES: Final = frozenset(
+    {LIVE_ENTRY_EVALUATED, ENTRY_PACKAGE_APPLIED, TRADE_CYCLE_CLOSED}
+)
+# Types whose payload names the trade cycle it belongs to.
+CYCLE_EVENT_TYPES: Final = frozenset({ENTRY_PACKAGE_APPLIED, TRADE_CYCLE_CLOSED})
+# Types that may carry a null bar (a closure resolved outside bar processing).
+NULLABLE_BAR_EVENT_TYPES: Final = frozenset({TRADE_CYCLE_CLOSED})
 MIN_SCHEMA_VERSION: Final = 2
 
 
@@ -31,7 +38,7 @@ class EventRow:
     occurred_at: str
     strategy_instance_id: str
     trade_cycle_id: str | None
-    bar_open_time_ms: int
+    bar_open_time_ms: int | None
     body: str
 
 
@@ -84,11 +91,14 @@ def parse_line(raw: bytes) -> ParsedLine:
     payload = record.get("payload")
     if not isinstance(payload, dict):
         return _malformed("payload is not an object")
-    bar_open_time_ms = payload.get("bar_open_time_ms")
-    if not _is_int(bar_open_time_ms):
+    if "bar_open_time_ms" not in payload:
+        return _malformed("payload.bar_open_time_ms is missing")
+    bar_open_time_ms = payload["bar_open_time_ms"]
+    bar_may_be_null = event_type in NULLABLE_BAR_EVENT_TYPES
+    if not _is_int(bar_open_time_ms) and not (bar_may_be_null and bar_open_time_ms is None):
         return _malformed("payload.bar_open_time_ms is not an integer")
     trade_cycle_id: str | None = None
-    if event_type == ENTRY_PACKAGE_APPLIED:
+    if event_type in CYCLE_EVENT_TYPES:
         cycle = payload.get("trade_cycle_id")
         if not isinstance(cycle, str) or not cycle.strip():
             return _malformed("payload.trade_cycle_id is not a non-empty string")
