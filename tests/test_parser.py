@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from journal_service.parser import LineOutcome, parse_line
-from tests.support import ENTRY, applied, closed, dump, live_entry
+from tests.support import ENTRY, applied, closed, dump, live_entry, opened
 
 
 def parse(record: dict[str, Any]) -> LineOutcome:
@@ -223,6 +223,68 @@ def test_structurally_invalid_trade_cycle_closed_is_malformed(record: dict[str, 
 
 def test_trade_cycle_closed_with_old_schema_is_skipped() -> None:
     assert parse({**closed("c1"), "schema_version": 1}) is LineOutcome.SKIPPED
+
+
+@pytest.mark.parametrize("bar", [1300, None])
+def test_trade_cycle_opened_is_stored_with_cycle_and_bar_and_body_unchanged(
+    bar: int | None,
+) -> None:
+    line = dump(opened("o1", bar, cycle="cycle-7"))
+    parsed = parse_line(line.encode())
+    assert parsed.outcome is LineOutcome.ACCEPTED
+    assert parsed.row is not None
+    assert parsed.row.event_type == "trade_cycle_opened"
+    assert parsed.row.strategy_instance_id == "ema_pullback:abc"
+    assert parsed.row.trade_cycle_id == "cycle-7"
+    assert parsed.row.bar_open_time_ms == bar
+    assert parsed.row.body == line
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"bar": None, "entry_order_id": None},
+        {"average_entry_price": "not-a-price", "first_fill_at_ms": None},
+        {"entry_order_link_id": 7, "entry_order_id": 42},
+    ],
+)
+def test_trade_cycle_opened_fill_fields_are_not_validated(changes: dict[str, Any]) -> None:
+    line = dump(opened("o1", **changes))
+    parsed = parse_line(line.encode())
+    assert parsed.outcome is LineOutcome.ACCEPTED
+    assert parsed.row is not None
+    assert parsed.row.body == line
+
+
+def _opened_without(key: str) -> dict[str, Any]:
+    record = opened("o1")
+    del record["payload"][key]
+    return record
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        _opened_without("trade_cycle_id"),
+        opened("o1", cycle=None),
+        opened("o1", cycle=""),
+        opened("o1", cycle=7),
+        _opened_without("bar_open_time_ms"),
+        opened("o1", "1000"),
+        opened("o1", True),
+        opened("o1", 1000.5),
+        {**opened("o1"), "event_id": ""},
+        {**opened("o1"), "occurred_at": None},
+        {**opened("o1"), "strategy_instance_id": "  "},
+        {**opened("o1"), "payload": []},
+    ],
+)
+def test_structurally_invalid_trade_cycle_opened_is_malformed(record: dict[str, Any]) -> None:
+    assert parse(record) is LineOutcome.MALFORMED
+
+
+def test_trade_cycle_opened_with_old_schema_is_skipped() -> None:
+    assert parse({**opened("o1"), "schema_version": 1}) is LineOutcome.SKIPPED
 
 
 def test_null_bar_stays_malformed_for_the_other_types() -> None:
