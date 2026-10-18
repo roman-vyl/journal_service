@@ -43,13 +43,17 @@ def events_for_instance(path: Path, params: dict[str, str]) -> dict[str, Any]:
 
     sql = [
         "SELECT event_id, event_type, schema_version, occurred_at, strategy_instance_id,",
-        "bar_open_time_ms, body FROM events WHERE strategy_instance_id = ?",
+        "trade_cycle_id, bar_open_time_ms, body FROM events WHERE strategy_instance_id = ?",
     ]
     args: list[Any] = [instance]
     event_type = params.get("event_type")
     if event_type:
         sql.append("AND event_type = ?")
         args.append(event_type)
+    trade_cycle_id = params.get("trade_cycle_id")
+    if trade_cycle_id:
+        sql.append("AND trade_cycle_id = ?")
+        args.append(trade_cycle_id)
     if from_bar is not None:
         sql.append("AND bar_open_time_ms >= ?")
         args.append(from_bar)
@@ -70,8 +74,9 @@ def events_for_instance(path: Path, params: dict[str, str]) -> dict[str, Any]:
             "schema_version": r[2],
             "occurred_at": r[3],
             "strategy_instance_id": r[4],
-            "bar_open_time_ms": r[5],
-            "body": json.loads(r[6]),
+            "trade_cycle_id": r[5],
+            "bar_open_time_ms": r[6],
+            "body": json.loads(r[7]),
         }
         for r in rows[:limit]
     ]

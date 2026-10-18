@@ -76,6 +76,37 @@ def applied(
     }
 
 
+def closed(
+    event_id: str,
+    bar: int | None = 1000,
+    *,
+    cycle: Any = "cycle-1",
+    instance: str = "ema_pullback:abc",
+    occurred_at: str = "2026-10-16T12:45:02.417305+00:00",
+    **payload_changes: Any,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "trade_cycle_id": cycle,
+        "bar_open_time_ms": bar,
+        "reason": "stop_loss",
+        "order_id": "bybit-sl-1",
+        "order_link_id": None,
+        "parent_order_link_id": "abi-link-1",
+    }
+    payload.update(payload_changes)
+    return {
+        "schema_version": 2,
+        "event_id": event_id,
+        "event_type": "trade_cycle_closed",
+        "occurred_at": occurred_at,
+        "source": "strategy_runtime.committed_bar_orchestrator",
+        "severity": "info",
+        "strategy_instance_id": instance,
+        "payload": payload,
+        "diagnostics": {},
+    }
+
+
 def dump(record: dict[str, Any]) -> str:
     return json.dumps(record, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
