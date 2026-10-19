@@ -138,6 +138,70 @@ def opened(
     }
 
 
+def open_trade(
+    event_id: str,
+    bar: int = 1000,
+    *,
+    cycle: Any = "cycle-1",
+    instance: str = "ema_pullback:abc",
+    occurred_at: str | None = None,
+    **payload_changes: Any,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "instrument": "BTCUSDT.P",
+        "timeframe": "5m",
+        "bar_open_time_ms": bar,
+        "trade_cycle_id": cycle,
+        "side": "long",
+        "desired_protection": {"stop_price": "99.50", "take_price": None},
+        "close_signal": {"active": False, "reason": None, "component_id": None, "layer": None},
+    }
+    payload.update(payload_changes)
+    return {
+        "schema_version": 2,
+        "event_id": event_id,
+        "event_type": "open_trade_evaluated",
+        "occurred_at": occurred_at or f"2026-10-16T12:{bar % 60:02d}:10Z",
+        "source": "strategy_runtime.committed_bar_orchestrator",
+        "severity": "info",
+        "strategy_instance_id": instance,
+        "payload": payload,
+        "diagnostics": {},
+    }
+
+
+def protection(
+    event_id: str,
+    bar: int = 1000,
+    *,
+    cycle: Any = "cycle-1",
+    instance: str = "ema_pullback:abc",
+    occurred_at: str | None = None,
+    **payload_changes: Any,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "trade_cycle_id": cycle,
+        "bar_open_time_ms": bar,
+        "requested_protection": {"stop_price": "99.5", "take_price": None},
+        "confirmed_protection": {"stop_price": "99.5", "take_price": None},
+        "position_quantity": "0.012",
+        "stop_order": {"order_id": "bybit-sl-1", "trigger_price": "99.5"},
+        "take_order": {"order_id": "bybit-tp-1", "trigger_price": "150.8"},
+    }
+    payload.update(payload_changes)
+    return {
+        "schema_version": 2,
+        "event_id": event_id,
+        "event_type": "protection_applied",
+        "occurred_at": occurred_at or f"2026-10-16T12:{bar % 60:02d}:20Z",
+        "source": "strategy_runtime.committed_bar_orchestrator",
+        "severity": "info",
+        "strategy_instance_id": instance,
+        "payload": payload,
+        "diagnostics": {},
+    }
+
+
 def dump(record: dict[str, Any]) -> str:
     return json.dumps(record, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
