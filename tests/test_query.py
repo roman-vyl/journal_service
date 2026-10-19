@@ -13,7 +13,16 @@ from journal_service.health import build_server
 from journal_service.stats import IngestStats
 from journal_service.storage import Store
 from journal_service.tailer import Tailer
-from tests.support import ENTRY, append, applied, closed, live_entry, opened
+from tests.support import (
+    ENTRY,
+    append,
+    applied,
+    closed,
+    live_entry,
+    open_trade,
+    opened,
+    protection,
+)
 
 STEP = 300_000
 B0 = 1_760_000_000_000
@@ -270,3 +279,21 @@ def test_whole_cycle_with_opening_by_trade_cycle_id(api: Api) -> None:
     assert [e["event_id"] for e in body["events"]][0] == "o2"
     assert body["events"][0]["bar_open_time_ms"] is None
     assert body["events"][0]["trade_cycle_id"] == "cycle-2"
+
+
+def test_whole_cycle_with_open_trade_events_by_trade_cycle_id(api: Api) -> None:
+    api.ingest(
+        live_entry("e1", bar(1)),
+        applied("a1", bar(1), cycle="cycle-1"),
+        opened("o1", bar(2), cycle="cycle-1"),
+        # Same bar as the opening, written after it (Runtime freezes the first fill
+        # before it asks Engine for the open-trade projection).
+        open_trade("t2", bar(2), cycle="cycle-1", occurred_at="2026-10-16T12:40:01.512233+00:00"),
+        open_trade("t3", bar(3), cycle="cycle-1"),
+        protection("p3", bar(3), cycle="cycle-1"),
+        open_trade("x3", bar(3), cycle="cycle-2"),
+        closed("c1", bar(4), cycle="cycle-1"),
+    )
+    _, body = api.get("/v1/events?strategy_instance_id=ema_pullback:abc&trade_cycle_id=cycle-1")
+    assert [e["event_id"] for e in body["events"]] == ["a1", "o1", "t2", "t3", "p3", "c1"]
+    assert body["events"][4]["body"] == protection("p3", bar(3), cycle="cycle-1")

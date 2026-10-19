@@ -4,7 +4,16 @@ from typing import Any
 import pytest
 
 from journal_service.parser import LineOutcome, parse_line
-from tests.support import ENTRY, applied, closed, dump, live_entry, opened
+from tests.support import (
+    ENTRY,
+    applied,
+    closed,
+    dump,
+    live_entry,
+    open_trade,
+    opened,
+    protection,
+)
 
 
 def parse(record: dict[str, Any]) -> LineOutcome:
@@ -292,3 +301,86 @@ def test_null_bar_stays_malformed_for_the_other_types() -> None:
     record["payload"]["bar_open_time_ms"] = None
     assert parse(record) is LineOutcome.MALFORMED
     assert parse(applied("a1", bar_open_time_ms=None)) is LineOutcome.MALFORMED
+
+
+OPEN_TRADE_BUILDERS = {"open_trade_evaluated": open_trade, "protection_applied": protection}
+
+
+@pytest.mark.parametrize("event_type", sorted(OPEN_TRADE_BUILDERS))
+def test_open_trade_events_are_stored_with_cycle_and_bar_and_body_unchanged(
+    event_type: str,
+) -> None:
+    line = dump(OPEN_TRADE_BUILDERS[event_type]("x1", 1300, cycle="cycle-7"))
+    parsed = parse_line(line.encode())
+    assert parsed.outcome is LineOutcome.ACCEPTED
+    assert parsed.row is not None
+    assert parsed.row.event_type == event_type
+    assert parsed.row.strategy_instance_id == "ema_pullback:abc"
+    assert parsed.row.trade_cycle_id == "cycle-7"
+    assert parsed.row.bar_open_time_ms == 1300
+    assert parsed.row.body == line
+
+
+def test_protection_applied_keeps_disabled_take_and_real_take_order() -> None:
+    line = dump(protection("p1"))
+    parsed = parse_line(line.encode())
+    assert parsed.row is not None
+    payload = json.loads(parsed.row.body)["payload"]
+    assert payload["requested_protection"]["take_price"] is None
+    assert payload["confirmed_protection"]["take_price"] is None
+    assert payload["take_order"] == {"order_id": "bybit-tp-1", "trigger_price": "150.8"}
+    assert payload["position_quantity"] == "0.012"
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"desired_protection": None, "close_signal": "anything", "side": 7},
+        {"position_quantity": None, "stop_order": None, "take_order": [], "side": "sideways"},
+    ],
+)
+@pytest.mark.parametrize("event_type", sorted(OPEN_TRADE_BUILDERS))
+def test_open_trade_event_values_are_not_validated(
+    event_type: str, changes: dict[str, Any]
+) -> None:
+    line = dump(OPEN_TRADE_BUILDERS[event_type]("x1", **changes))
+    parsed = parse_line(line.encode())
+    assert parsed.outcome is LineOutcome.ACCEPTED
+    assert parsed.row is not None
+    assert parsed.row.body == line
+
+
+def _open_trade_without(event_type: str, key: str) -> dict[str, Any]:
+    record = OPEN_TRADE_BUILDERS[event_type]("x1")
+    del record["payload"][key]
+    return record
+
+
+def _invalid_open_trade_records() -> list[Any]:
+    cases = []
+    for event_type, build in sorted(OPEN_TRADE_BUILDERS.items()):
+        cases += [
+            _open_trade_without(event_type, "trade_cycle_id"),
+            build("x1", cycle=None),
+            build("x1", cycle=""),
+            build("x1", cycle=7),
+            _open_trade_without(event_type, "bar_open_time_ms"),
+            build("x1", bar_open_time_ms=None),
+            build("x1", bar_open_time_ms="1000"),
+            {**build("x1"), "event_id": ""},
+            {**build("x1"), "occurred_at": None},
+            {**build("x1"), "strategy_instance_id": "  "},
+            {**build("x1"), "payload": []},
+        ]
+    return cases
+
+
+@pytest.mark.parametrize("record", _invalid_open_trade_records())
+def test_structurally_invalid_open_trade_events_are_malformed(record: dict[str, Any]) -> None:
+    assert parse(record) is LineOutcome.MALFORMED
+
+
+@pytest.mark.parametrize("event_type", sorted(OPEN_TRADE_BUILDERS))
+def test_open_trade_events_with_old_schema_are_skipped(event_type: str) -> None:
+    record = {**OPEN_TRADE_BUILDERS[event_type]("x1"), "schema_version": 1}
+    assert parse(record) is LineOutcome.SKIPPED
