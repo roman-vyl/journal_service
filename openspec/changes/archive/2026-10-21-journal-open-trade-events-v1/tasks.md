@@ -8,4 +8,4 @@
 
 ## 2. Rollout (on owner's word only)
 
-- [ ] 2.1 PR, merge, deploy only on the owner's word, after Runtime PR #27 and ABI PR #25.
+- [x] 2.1 PR, merge, deploy only on the owner's word, after Runtime PR #27 and ABI PR #25.
