@@ -8,6 +8,7 @@ from tests.support import (
     ENTRY,
     applied,
     closed,
+    declined,
     dump,
     live_entry,
     open_trade,
@@ -301,6 +302,67 @@ def test_null_bar_stays_malformed_for_the_other_types() -> None:
     record["payload"]["bar_open_time_ms"] = None
     assert parse(record) is LineOutcome.MALFORMED
     assert parse(applied("a1", bar_open_time_ms=None)) is LineOutcome.MALFORMED
+
+
+def test_entry_package_declined_is_stored_with_cycle_and_bar_and_body_unchanged() -> None:
+    line = dump(declined("d1", 1300, cycle="cycle-7"))
+    parsed = parse_line(line.encode())
+    assert parsed.outcome is LineOutcome.ACCEPTED
+    assert parsed.row is not None
+    assert parsed.row.event_type == "entry_package_declined"
+    assert parsed.row.strategy_instance_id == "ema_pullback:abc"
+    assert parsed.row.trade_cycle_id == "cycle-7"
+    assert parsed.row.bar_open_time_ms == 1300
+    assert parsed.row.body == line
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"decline_reason": "reason_never_seen_before"},
+        {"decline_message": "", "risk_multiplier": "0.5"},
+        {"risk_multiplier": None, "decline_reason": 7},
+    ],
+)
+def test_entry_package_declined_reason_and_values_are_not_validated(
+    changes: dict[str, Any],
+) -> None:
+    line = dump(declined("d1", **changes))
+    parsed = parse_line(line.encode())
+    assert parsed.outcome is LineOutcome.ACCEPTED
+    assert parsed.row is not None
+    assert parsed.row.body == line
+
+
+def _declined_without(key: str) -> dict[str, Any]:
+    record = declined("d1")
+    del record["payload"][key]
+    return record
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        _declined_without("trade_cycle_id"),
+        declined("d1", cycle=None),
+        declined("d1", cycle=""),
+        declined("d1", cycle=7),
+        _declined_without("bar_open_time_ms"),
+        declined("d1", None),
+        declined("d1", "1000"),
+        declined("d1", True),
+        {**declined("d1"), "event_id": ""},
+        {**declined("d1"), "occurred_at": None},
+        {**declined("d1"), "strategy_instance_id": "  "},
+        {**declined("d1"), "payload": []},
+    ],
+)
+def test_structurally_invalid_entry_package_declined_is_malformed(record: dict[str, Any]) -> None:
+    assert parse(record) is LineOutcome.MALFORMED
+
+
+def test_entry_package_declined_with_old_schema_is_skipped() -> None:
+    assert parse({**declined("d1"), "schema_version": 1}) is LineOutcome.SKIPPED
 
 
 OPEN_TRADE_BUILDERS = {"open_trade_evaluated": open_trade, "protection_applied": protection}
