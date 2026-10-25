@@ -18,6 +18,7 @@ from tests.support import (
     append,
     applied,
     closed,
+    declined,
     live_entry,
     open_trade,
     opened,
@@ -297,3 +298,23 @@ def test_whole_cycle_with_open_trade_events_by_trade_cycle_id(api: Api) -> None:
     _, body = api.get("/v1/events?strategy_instance_id=ema_pullback:abc&trade_cycle_id=cycle-1")
     assert [e["event_id"] for e in body["events"]] == ["a1", "o1", "t2", "t3", "p3", "c1"]
     assert body["events"][4]["body"] == protection("p3", bar(3), cycle="cycle-1")
+
+
+def test_declined_entry_is_returned_with_its_evaluation_and_alone_by_cycle(api: Api) -> None:
+    evaluation = live_entry("e1", bar(1), desired_entry=ENTRY)
+    refusal = declined("d1", bar(1), cycle="cycle-9")
+    api.ingest(
+        evaluation, refusal, live_entry("e2", bar(2)), applied("a1", bar(2), cycle="cycle-3")
+    )
+    _, body = api.get(
+        f"/v1/events?strategy_instance_id=ema_pullback:abc&from_bar_ms={bar(1)}&to_bar_ms={bar(1)}"
+    )
+    assert [e["event_type"] for e in body["events"]] == [
+        "live_entry_evaluated",
+        "entry_package_declined",
+    ]
+    assert body["events"][1]["body"] == refusal
+    assert body["events"][1]["trade_cycle_id"] == "cycle-9"
+
+    _, body = api.get("/v1/events?strategy_instance_id=ema_pullback:abc&trade_cycle_id=cycle-9")
+    assert [e["event_id"] for e in body["events"]] == ["d1"]

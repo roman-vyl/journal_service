@@ -202,6 +202,36 @@ def protection(
     }
 
 
+def declined(
+    event_id: str,
+    bar: Any = 1000,
+    *,
+    cycle: Any = "cycle-1",
+    instance: str = "ema_pullback:abc",
+    occurred_at: str = "2026-10-16T12:45:02.417305+00:00",
+    **payload_changes: Any,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "trade_cycle_id": cycle,
+        "bar_open_time_ms": bar,
+        "risk_multiplier": "1",
+        "decline_reason": "insufficient_balance_for_minimum_quantity",
+        "decline_message": "quantity 0.0004 below minOrderQty 0.001",
+    }
+    payload.update(payload_changes)
+    return {
+        "schema_version": 2,
+        "event_id": event_id,
+        "event_type": "entry_package_declined",
+        "occurred_at": occurred_at,
+        "source": "strategy_runtime.committed_bar_orchestrator",
+        "severity": "warning",
+        "strategy_instance_id": instance,
+        "payload": payload,
+        "diagnostics": {},
+    }
+
+
 def dump(record: dict[str, Any]) -> str:
     return json.dumps(record, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 

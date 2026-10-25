@@ -11,7 +11,9 @@ It never interprets events, never reconstructs them from internal state snapshot
 never makes trading decisions, and never calls Strategy Engine, Strategy Runtime,
 ABI or Market Data Service. No trading service depends on it.
 
-Status: Runtime `live_entry_evaluated` ingest, `GET /health` and the read API below.
+Status: ingest of Runtime `live_entry_evaluated`, `entry_package_applied`,
+`entry_package_declined`, `trade_cycle_opened`, `open_trade_evaluated`,
+`protection_applied` and `trade_cycle_closed`, `GET /health` and the read API below.
 bbb_stack wiring is a separate later step.
 
 Run locally:
