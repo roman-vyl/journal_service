@@ -19,6 +19,7 @@ from tests.support import (
     applied,
     closed,
     declined,
+    ended,
     live_entry,
     open_trade,
     opened,
@@ -318,3 +319,25 @@ def test_declined_entry_is_returned_with_its_evaluation_and_alone_by_cycle(api: 
 
     _, body = api.get("/v1/events?strategy_instance_id=ema_pullback:abc&trade_cycle_id=cycle-9")
     assert [e["event_id"] for e in body["events"]] == ["d1"]
+
+
+def test_ended_entry_cycle_is_returned_by_cycle_and_by_bar(api: Api) -> None:
+    api.ingest(
+        applied("a1", bar(1), cycle="cycle-1"),
+        ended("x1", bar(2), cycle="cycle-1"),
+        applied("a2", bar(2), cycle="cycle-2"),
+        ended("x2", None, cycle="cycle-2", reason="disabled"),
+    )
+    _, body = api.get("/v1/events?strategy_instance_id=ema_pullback:abc&trade_cycle_id=cycle-1")
+    assert [e["event_id"] for e in body["events"]] == ["a1", "x1"]
+    assert body["events"][1]["body"] == ended("x1", bar(2), cycle="cycle-1")
+
+    _, body = api.get("/v1/events?strategy_instance_id=ema_pullback:abc&trade_cycle_id=cycle-2")
+    assert [e["event_id"] for e in body["events"]] == ["x2", "a2"]
+    assert body["events"][0]["bar_open_time_ms"] is None
+    assert body["events"][0]["trade_cycle_id"] == "cycle-2"
+
+    _, body = api.get(
+        f"/v1/events?strategy_instance_id=ema_pullback:abc&from_bar_ms={bar(2)}&to_bar_ms={bar(2)}"
+    )
+    assert [e["event_id"] for e in body["events"]] == ["a2", "x1"]

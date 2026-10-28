@@ -18,6 +18,7 @@ TRADE_CYCLE_CLOSED: Final = "trade_cycle_closed"
 OPEN_TRADE_EVALUATED: Final = "open_trade_evaluated"
 PROTECTION_APPLIED: Final = "protection_applied"
 ENTRY_PACKAGE_DECLINED: Final = "entry_package_declined"
+ENTRY_CYCLE_ENDED: Final = "entry_cycle_ended"
 INGESTED_EVENT_TYPES: Final = frozenset(
     {
         LIVE_ENTRY_EVALUATED,
@@ -27,6 +28,7 @@ INGESTED_EVENT_TYPES: Final = frozenset(
         OPEN_TRADE_EVALUATED,
         PROTECTION_APPLIED,
         ENTRY_PACKAGE_DECLINED,
+        ENTRY_CYCLE_ENDED,
     }
 )
 # Types whose payload names the trade cycle it belongs to.
@@ -38,11 +40,15 @@ CYCLE_EVENT_TYPES: Final = frozenset(
         OPEN_TRADE_EVALUATED,
         PROTECTION_APPLIED,
         ENTRY_PACKAGE_DECLINED,
+        ENTRY_CYCLE_ENDED,
     }
 )
 # Types that may carry a null bar (resolved outside bar processing: a recovered
-# first fill or a closure found by the pending-close resolver).
-NULLABLE_BAR_EVENT_TYPES: Final = frozenset({TRADE_CYCLE_OPENED, TRADE_CYCLE_CLOSED})
+# first fill, a closure found by the pending-close resolver, or an entry cycle
+# ended by a disable or by the resolver).
+NULLABLE_BAR_EVENT_TYPES: Final = frozenset(
+    {TRADE_CYCLE_OPENED, TRADE_CYCLE_CLOSED, ENTRY_CYCLE_ENDED}
+)
 MIN_SCHEMA_VERSION: Final = 2
 
 

@@ -241,3 +241,31 @@ def append(path: Path, *records: dict[str, Any] | str) -> None:
         for record in records:
             handle.write(record if isinstance(record, str) else dump(record))
             handle.write("\n")
+
+
+def ended(
+    event_id: str,
+    bar: Any = 1000,
+    *,
+    cycle: Any = "cycle-1",
+    instance: str = "ema_pullback:abc",
+    occurred_at: str = "2026-10-16T12:45:02.417305+00:00",
+    **payload_changes: Any,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "trade_cycle_id": cycle,
+        "bar_open_time_ms": bar,
+        "reason": "cancelled",
+    }
+    payload.update(payload_changes)
+    return {
+        "schema_version": 2,
+        "event_id": event_id,
+        "event_type": "entry_cycle_ended",
+        "occurred_at": occurred_at,
+        "source": "strategy_runtime.committed_bar_orchestrator",
+        "severity": "info",
+        "strategy_instance_id": instance,
+        "payload": payload,
+        "diagnostics": {},
+    }
