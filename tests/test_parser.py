@@ -10,6 +10,7 @@ from tests.support import (
     closed,
     declined,
     dump,
+    ended,
     live_entry,
     open_trade,
     opened,
@@ -363,6 +364,67 @@ def test_structurally_invalid_entry_package_declined_is_malformed(record: dict[s
 
 def test_entry_package_declined_with_old_schema_is_skipped() -> None:
     assert parse({**declined("d1"), "schema_version": 1}) is LineOutcome.SKIPPED
+
+
+def test_entry_cycle_ended_is_stored_with_cycle_and_bar_and_body_unchanged() -> None:
+    line = dump(ended("x1", 1300, cycle="cycle-7"))
+    parsed = parse_line(line.encode())
+    assert parsed.outcome is LineOutcome.ACCEPTED
+    assert parsed.row is not None
+    assert parsed.row.event_type == "entry_cycle_ended"
+    assert parsed.row.strategy_instance_id == "ema_pullback:abc"
+    assert parsed.row.trade_cycle_id == "cycle-7"
+    assert parsed.row.bar_open_time_ms == 1300
+    assert parsed.row.body == line
+
+
+def test_entry_cycle_ended_outside_a_bar_is_stored_with_null_bar() -> None:
+    line = dump(ended("x1", None, cycle="cycle-7", reason="disabled"))
+    parsed = parse_line(line.encode())
+    assert parsed.outcome is LineOutcome.ACCEPTED
+    assert parsed.row is not None
+    assert parsed.row.trade_cycle_id == "cycle-7"
+    assert parsed.row.bar_open_time_ms is None
+    assert parsed.row.body == line
+
+
+@pytest.mark.parametrize("reason", ["reason_never_seen_before", None, 7])
+def test_entry_cycle_ended_reason_is_not_validated(reason: Any) -> None:
+    line = dump(ended("x1", reason=reason))
+    parsed = parse_line(line.encode())
+    assert parsed.outcome is LineOutcome.ACCEPTED
+    assert parsed.row is not None
+    assert parsed.row.body == line
+
+
+def _ended_without(key: str) -> dict[str, Any]:
+    record = ended("x1")
+    del record["payload"][key]
+    return record
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        _ended_without("trade_cycle_id"),
+        ended("x1", cycle=None),
+        ended("x1", cycle=""),
+        ended("x1", cycle=7),
+        _ended_without("bar_open_time_ms"),
+        ended("x1", "1000"),
+        ended("x1", True),
+        {**ended("x1"), "event_id": ""},
+        {**ended("x1"), "occurred_at": None},
+        {**ended("x1"), "strategy_instance_id": "  "},
+        {**ended("x1"), "payload": []},
+    ],
+)
+def test_structurally_invalid_entry_cycle_ended_is_malformed(record: dict[str, Any]) -> None:
+    assert parse(record) is LineOutcome.MALFORMED
+
+
+def test_entry_cycle_ended_with_old_schema_is_skipped() -> None:
+    assert parse({**ended("x1"), "schema_version": 1}) is LineOutcome.SKIPPED
 
 
 OPEN_TRADE_BUILDERS = {"open_trade_evaluated": open_trade, "protection_applied": protection}
