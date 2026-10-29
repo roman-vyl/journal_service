@@ -9,9 +9,9 @@ from pathlib import Path
 
 from journal_service.parser import EventRow
 
-_SCHEMA_VERSION = 1
+_SCHEMA_VERSION = 2
 
-_SCHEMA = """
+_SCHEMA_V1 = """
 CREATE TABLE events (
   source               TEXT    NOT NULL,
   event_id             TEXT    NOT NULL,
@@ -38,6 +38,55 @@ CREATE TABLE ingest_cursor (
 );
 """
 
+# Version 2: the closed-trades table (derived data, filled by a later change).
+# Prices, quantities and money are decimal text; times are UTC milliseconds.
+_SCHEMA_V2 = """
+CREATE TABLE closed_trades (
+  strategy_instance_id TEXT    NOT NULL,
+  trade_cycle_id       TEXT    NOT NULL,
+  symbol               TEXT,
+  side                 TEXT,
+  close_reason         TEXT    NOT NULL,
+  close_event_id       TEXT    NOT NULL,
+  closing_order_id     TEXT    NOT NULL,
+  status               TEXT    NOT NULL,
+  opened_at_ms         INTEGER,
+  entry_avg_price      TEXT,
+  entry_qty            TEXT,
+  entry_notional_usdt  TEXT,
+  entry_fill_count     INTEGER,
+  entry_fee_usdt       TEXT,
+  closed_at_ms         INTEGER,
+  exit_avg_price       TEXT,
+  exit_qty             TEXT,
+  exit_fill_count      INTEGER,
+  exit_fee_usdt        TEXT,
+  duration_ms          INTEGER,
+  planned_entry_price  TEXT,
+  planned_initial_stop TEXT,
+  planned_initial_take TEXT,
+  last_stop            TEXT,
+  last_take            TEXT,
+  gross_pnl_usdt       TEXT,
+  fees_usdt            TEXT,
+  net_pnl_usdt         TEXT,
+  price_return_pct     TEXT,
+  net_return_pct       TEXT,
+  risk_usdt            TEXT,
+  r_multiple           TEXT,
+  entry_slippage_pct   TEXT,
+  exit_slippage_pct    TEXT,
+  created_at_ms        INTEGER NOT NULL,
+  completed_at_ms      INTEGER,
+  attempts             INTEGER NOT NULL,
+  last_attempt_at_ms   INTEGER,
+  last_error           TEXT,
+  PRIMARY KEY (strategy_instance_id, trade_cycle_id)
+);
+CREATE INDEX closed_trades_closed_at ON closed_trades (closed_at_ms);
+CREATE INDEX closed_trades_status    ON closed_trades (status);
+"""
+
 
 @dataclass(frozen=True, slots=True)
 class Cursor:
@@ -61,13 +110,15 @@ class Store:
         version = self._db.execute("PRAGMA user_version").fetchone()[0]
         if version == _SCHEMA_VERSION:
             return
-        if version != 0:
+        if version not in (0, 1):
             raise RuntimeError(f"unsupported journal database version {version}")
+        scripts = [_SCHEMA_V1, _SCHEMA_V2] if version == 0 else [_SCHEMA_V2]
         self._db.execute("BEGIN IMMEDIATE")
         try:
-            for statement in _SCHEMA.split(";"):
-                if statement.strip():
-                    self._db.execute(statement)
+            for script in scripts:
+                for statement in script.split(";"):
+                    if statement.strip():
+                        self._db.execute(statement)
             self._db.execute(f"PRAGMA user_version={_SCHEMA_VERSION}")
             self._db.execute("COMMIT")
         except BaseException:

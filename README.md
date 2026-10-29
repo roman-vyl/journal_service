@@ -13,7 +13,7 @@ ABI or Market Data Service. No trading service depends on it.
 
 Status: ingest of Runtime `live_entry_evaluated`, `entry_package_applied`,
 `entry_package_declined`, `entry_cycle_ended`, `trade_cycle_opened`, `open_trade_evaluated`,
-`protection_applied` and `trade_cycle_closed`, `GET /health` and the read API below.
+`protection_applied` and `trade_cycle_closed`, `GET /health` and the read API below. Database schema 2 adds an empty `closed_trades` table (filled by a later change).
 bbb_stack wiring is a separate later step.
 
 Run locally:
