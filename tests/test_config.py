@@ -47,3 +47,15 @@ def test_invalid_values_are_rejected() -> None:
         Config.from_env({**base, "JOURNAL_POLL_INTERVAL_S": "0"})
     with pytest.raises(ValueError):
         Config.from_env({**base, "JOURNAL_BATCH_SIZE": "0"})
+
+
+def test_closed_trades_settings() -> None:
+    base = {"JOURNAL_RUNTIME_SOURCE_PATH": "a", "JOURNAL_DB_PATH": "b"}
+    default = Config.from_env(base)
+    assert (default.abi_base_url, default.trades_interval_s) == ("", 60.0)
+    config = Config.from_env(
+        {**base, "JOURNAL_ABI_BASE_URL": " http://abi:8787 ", "JOURNAL_TRADES_INTERVAL_S": "5"}
+    )
+    assert (config.abi_base_url, config.trades_interval_s) == ("http://abi:8787", 5.0)
+    with pytest.raises(ValueError):
+        Config.from_env({**base, "JOURNAL_TRADES_INTERVAL_S": "0"})

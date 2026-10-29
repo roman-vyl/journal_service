@@ -18,6 +18,8 @@ class Config:
     batch_size: int = 1000
     host: str = "0.0.0.0"
     port: int = 8097
+    abi_base_url: str = ""
+    trades_interval_s: float = 60.0
 
     def __post_init__(self) -> None:
         if self.poll_interval_s <= 0:
@@ -26,6 +28,8 @@ class Config:
             raise ValueError("batch_size must be at least 1")
         if not 0 <= self.port <= 65535:
             raise ValueError("port must be in 0..65535")
+        if self.trades_interval_s <= 0:
+            raise ValueError("trades_interval_s must be positive")
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Config:
@@ -42,4 +46,6 @@ class Config:
             batch_size=int(values.get("JOURNAL_BATCH_SIZE", "1000")),
             host=values.get("JOURNAL_HOST", "0.0.0.0"),
             port=int(values.get("JOURNAL_PORT", "8097")),
+            abi_base_url=values.get("JOURNAL_ABI_BASE_URL", "").strip(),
+            trades_interval_s=float(values.get("JOURNAL_TRADES_INTERVAL_S", "60")),
         )

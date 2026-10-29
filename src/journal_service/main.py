@@ -6,11 +6,13 @@ import logging
 import signal
 from threading import Event, Thread
 
+from journal_service.abi_client import fetch_cycle
 from journal_service.config import RUNTIME_SOURCE_NAME, Config
 from journal_service.health import build_server
 from journal_service.stats import IngestStats
 from journal_service.storage import Store
 from journal_service.tailer import Tailer
+from journal_service.trades import TradeBuilder, TradesStats
 
 _LOGGER = logging.getLogger("journal_service")
 
@@ -21,6 +23,15 @@ def _tail_forever(tailer: Tailer, stop: Event, interval_s: float) -> None:
             tailer.poll_once()
         except Exception:
             _LOGGER.exception("Ingest poll failed; retrying")
+        stop.wait(interval_s)
+
+
+def _build_forever(builder: TradeBuilder, stop: Event, interval_s: float) -> None:
+    while not stop.is_set():
+        try:
+            builder.run_pass()
+        except Exception:
+            _LOGGER.exception("Closed-trades pass failed; retrying")
         stop.wait(interval_s)
 
 
@@ -42,7 +53,16 @@ def run(config: Config) -> None:
     worker = Thread(
         target=_tail_forever, args=(tailer, stop, config.poll_interval_s), name="tailer"
     )
-    server = build_server(config.host, config.port, RUNTIME_SOURCE_NAME, stats, config.db_path)
+    trades_stats = TradesStats(abi_configured=bool(config.abi_base_url))
+    builder = TradeBuilder(config.db_path, config.abi_base_url, trades_stats, fetch_cycle)
+    trades_worker = Thread(
+        target=_build_forever,
+        args=(builder, stop, config.trades_interval_s),
+        name="closed-trades",
+    )
+    server = build_server(
+        config.host, config.port, RUNTIME_SOURCE_NAME, stats, config.db_path, trades_stats
+    )
 
     def shutdown(_signum: int, _frame: object) -> None:
         stop.set()
@@ -51,11 +71,13 @@ def run(config: Config) -> None:
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
     worker.start()
+    trades_worker.start()
     try:
         server.serve_forever()
     finally:
         stop.set()
         worker.join()
+        trades_worker.join()
         server.server_close()
         store.close()
 

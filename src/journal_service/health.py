@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -10,10 +11,31 @@ from urllib.parse import parse_qsl, urlsplit
 
 from journal_service.query import InvalidQuery, events_for_instance, list_strategy_instances
 from journal_service.stats import IngestStats
+from journal_service.trades import TradesStats, closed_trade_counts
+
+
+def _trades_block(trades: TradesStats, db_path: Path) -> dict[str, Any]:
+    last_pass_at_ms, last_error = trades.snapshot()
+    try:
+        counts: dict[str, int | None] = dict(closed_trade_counts(db_path))
+    except sqlite3.Error:
+        counts = {"complete": None, "incomplete": None}
+    return {
+        "abi_configured": trades.abi_configured,
+        "complete": counts["complete"],
+        "incomplete": counts["incomplete"],
+        "last_pass_at_ms": last_pass_at_ms,
+        "last_error": last_error,
+    }
 
 
 def build_server(
-    host: str, port: int, source: str, stats: IngestStats, db_path: Path
+    host: str,
+    port: int,
+    source: str,
+    stats: IngestStats,
+    db_path: Path,
+    trades: TradesStats | None = None,
 ) -> ThreadingHTTPServer:
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self) -> None:
@@ -25,21 +47,21 @@ def build_server(
                 self._respond(404, {"error": "not found"})
                 return
             snapshot = stats.snapshot()
-            self._respond(
-                200,
-                {
-                    "status": "ok",
-                    "sources": {
-                        source: {
-                            "cursor_offset": snapshot.cursor_offset,
-                            "last_ingested_occurred_at": snapshot.last_occurred_at,
-                        }
-                    },
-                    "stored_count": snapshot.stored_count,
-                    "skipped_count": snapshot.skipped_count,
-                    "malformed_count": snapshot.malformed_count,
+            body: dict[str, Any] = {
+                "status": "ok",
+                "sources": {
+                    source: {
+                        "cursor_offset": snapshot.cursor_offset,
+                        "last_ingested_occurred_at": snapshot.last_occurred_at,
+                    }
                 },
-            )
+                "stored_count": snapshot.stored_count,
+                "skipped_count": snapshot.skipped_count,
+                "malformed_count": snapshot.malformed_count,
+            }
+            if trades is not None:
+                body["closed_trades"] = _trades_block(trades, db_path)
+            self._respond(200, body)
 
         def _read_api(self, path: str, params: dict[str, str]) -> None:
             try:

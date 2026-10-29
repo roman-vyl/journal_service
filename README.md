@@ -13,7 +13,10 @@ ABI or Market Data Service. No trading service depends on it.
 
 Status: ingest of Runtime `live_entry_evaluated`, `entry_package_applied`,
 `entry_package_declined`, `entry_cycle_ended`, `trade_cycle_opened`, `open_trade_evaluated`,
-`protection_applied` and `trade_cycle_closed`, `GET /health` and the read API below. Database schema 2 adds an empty `closed_trades` table (filled by a later change).
+`protection_applied` and `trade_cycle_closed`, `GET /health` and the read API below. Database schema 2 adds the `closed_trades` table: a builder thread fills it once per
+`JOURNAL_TRADES_INTERVAL_S` (default 60) from stored `trade_cycle_closed` events and ABI's
+per-cycle exchange-journal route at `JOURNAL_ABI_BASE_URL` (empty = rows stay `incomplete`
+with `abi_not_configured`); `/health` shows its `closed_trades` block.
 bbb_stack wiring is a separate later step.
 
 Run locally:

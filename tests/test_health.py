@@ -61,3 +61,33 @@ def test_no_other_endpoint_exists(base_url_and_stats: tuple[str, IngestStats], p
     with pytest.raises(urllib.error.HTTPError) as error:
         urllib.request.urlopen(f"{base_url}{path}", timeout=2)
     assert error.value.code == 404
+
+
+def test_health_reports_the_closed_trades_builder(tmp_path: Path) -> None:
+    from journal_service.storage import Store
+    from journal_service.trades import TradesStats
+
+    db_path = tmp_path / "j.sqlite3"
+    Store(db_path).close()
+    trades = TradesStats(abi_configured=False)
+    trades.record_pass(1234, ["abi_not_configured"])
+    server = build_server("127.0.0.1", 0, "runtime", IngestStats(), db_path, trades)
+    thread = Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{server.server_address[1]}/health"
+        with urllib.request.urlopen(url, timeout=2) as response:
+            assert response.status == 200
+            body = json.loads(response.read())
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join()
+    assert body["closed_trades"] == {
+        "abi_configured": False,
+        "complete": 0,
+        "incomplete": 0,
+        "last_pass_at_ms": 1234,
+        "last_error": "abi_not_configured",
+    }
+    assert body["status"] == "ok"
