@@ -13,7 +13,10 @@ ABI or Market Data Service. No trading service depends on it.
 
 Status: ingest of Runtime `live_entry_evaluated`, `entry_package_applied`,
 `entry_package_declined`, `entry_cycle_ended`, `trade_cycle_opened`, `open_trade_evaluated`,
-`protection_applied` and `trade_cycle_closed`, `GET /health` and the read API below. Database schema 2 adds an empty `closed_trades` table (filled by a later change).
+`protection_applied` and `trade_cycle_closed`, `GET /health` and the read API below. Database schema 2 adds the `closed_trades` table: a builder thread fills it once per
+`JOURNAL_TRADES_INTERVAL_S` (default 60) from stored `trade_cycle_closed` events and ABI's
+per-cycle exchange-journal route at `JOURNAL_ABI_BASE_URL` (empty = rows stay `incomplete`
+with `abi_not_configured`); `/health` shows its `closed_trades` block.
 bbb_stack wiring is a separate later step.
 
 Run locally:
@@ -36,6 +39,18 @@ curl 'http://127.0.0.1:8097/v1/strategy-instances'
 (bounds inclusive; without `limit` every event of the range is returned, `truncated` is true only when an optional `limit` cut the answer; invalid input is HTTP 400). A bar with no
 stored event is absent from the answer; an event with `payload.desired_entry = null` means
 "evaluated, no signal".
+
+Closed trades (rows of `closed_trades` exactly as stored; decimals are strings):
+
+```bash
+curl 'http://127.0.0.1:8097/v1/closed-trades?strategy_instance_id=<id>&from_closed_ms=<ms>&to_closed_ms=<ms>&status=complete&limit=<n>'
+curl 'http://127.0.0.1:8097/v1/closed-trades/<strategy_instance_id>/<trade_cycle_id>'
+```
+
+The list returns `{"trades": [...], "truncated": bool}`: incomplete rows (no close time yet)
+first by creation, then by `closed_at_ms`, `close_event_id`. Every parameter is optional; the
+close period is inclusive and skips incomplete rows. One trade returns `{"trade": {...}}` or
+404. Invalid input is HTTP 400.
 
 Checks: `ruff check .`, `ruff format --check .`, `mypy`, `pytest`.
 
