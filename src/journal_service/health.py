@@ -1,4 +1,5 @@
-"""HTTP surface: GET /health and the read API (GET /v1/events, GET /v1/strategy-instances)."""
+"""HTTP surface: GET /health and the read API (GET /v1/events, GET /v1/strategy-instances,
+GET /v1/closed-trades, GET /v1/closed-trades/{strategy_instance_id}/{trade_cycle_id})."""
 
 from __future__ import annotations
 
@@ -7,11 +8,14 @@ import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qsl, urlsplit
+from urllib.parse import parse_qsl, unquote, urlsplit
 
 from journal_service.query import InvalidQuery, events_for_instance, list_strategy_instances
 from journal_service.stats import IngestStats
 from journal_service.trades import TradesStats, closed_trade_counts
+from journal_service.trades_query import closed_trade, list_closed_trades
+
+_TRADES_PATH = "/v1/closed-trades"
 
 
 def _trades_block(trades: TradesStats, db_path: Path) -> dict[str, Any]:
@@ -43,6 +47,12 @@ def build_server(
             if url.path == "/v1/events" or url.path == "/v1/strategy-instances":
                 self._read_api(url.path, dict(parse_qsl(url.query)))
                 return
+            if url.path == _TRADES_PATH:
+                self._trades_list(dict(parse_qsl(url.query, keep_blank_values=True)))
+                return
+            if url.path.startswith(_TRADES_PATH + "/"):
+                self._trade_one(url.path[len(_TRADES_PATH) + 1 :])
+                return
             if self.path != "/health":
                 self._respond(404, {"error": "not found"})
                 return
@@ -71,6 +81,23 @@ def build_server(
                     self._respond(200, list_strategy_instances(db_path))
             except InvalidQuery as error:
                 self._respond(400, {"error": str(error)})
+
+        def _trades_list(self, params: dict[str, str]) -> None:
+            try:
+                self._respond(200, list_closed_trades(db_path, params))
+            except InvalidQuery as error:
+                self._respond(400, {"error": str(error)})
+
+        def _trade_one(self, rest: str) -> None:
+            parts = [unquote(part) for part in rest.split("/")]
+            if len(parts) != 2 or not all(parts):
+                self._respond(404, {"error": "not found"})
+                return
+            row = closed_trade(db_path, parts[0], parts[1])
+            if row is None:
+                self._respond(404, {"error": "closed trade not found"})
+                return
+            self._respond(200, {"trade": row})
 
         def _respond(self, status: int, body: dict[str, Any]) -> None:
             payload = json.dumps(body).encode("utf-8")

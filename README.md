@@ -40,6 +40,18 @@ curl 'http://127.0.0.1:8097/v1/strategy-instances'
 stored event is absent from the answer; an event with `payload.desired_entry = null` means
 "evaluated, no signal".
 
+Closed trades (rows of `closed_trades` exactly as stored; decimals are strings):
+
+```bash
+curl 'http://127.0.0.1:8097/v1/closed-trades?strategy_instance_id=<id>&from_closed_ms=<ms>&to_closed_ms=<ms>&status=complete&limit=<n>'
+curl 'http://127.0.0.1:8097/v1/closed-trades/<strategy_instance_id>/<trade_cycle_id>'
+```
+
+The list returns `{"trades": [...], "truncated": bool}`: incomplete rows (no close time yet)
+first by creation, then by `closed_at_ms`, `close_event_id`. Every parameter is optional; the
+close period is inclusive and skips incomplete rows. One trade returns `{"trade": {...}}` or
+404. Invalid input is HTTP 400.
+
 Checks: `ruff check .`, `ruff format --check .`, `mypy`, `pytest`.
 
 - `openspec/changes/journal-service-foundation-v1`: purpose, boundaries, stack.
