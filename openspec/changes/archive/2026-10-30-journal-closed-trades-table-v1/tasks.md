@@ -6,4 +6,4 @@
 
 ## 2. Rollout (on owner's word only)
 
-- [ ] 2.1 PR and merge only on the owner's word. Filling the table is a separate change.
+- [x] 2.1 PR and merge only on the owner's word. Filling the table is a separate change.

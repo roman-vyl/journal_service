@@ -9,6 +9,6 @@
 
 ## 2. Rollout (on owner's word only)
 
-- [ ] 2.1 PR and merge on the owner's word.
-- [ ] 2.2 bbb_stack: `JOURNAL_ABI_BASE_URL` and network path from the Journal container to ABI (separate change), deploy on «деплой».
-- [ ] 2.3 Demo check: the next closed trade becomes `complete` with prices and fees equal to Bybit's.
+- [x] 2.1 PR and merge on the owner's word.
+- [x] 2.2 bbb_stack: `JOURNAL_ABI_BASE_URL` and network path from the Journal container to ABI (separate change), deploy on «деплой».
+- [x] 2.3 Demo check: the next closed trade becomes `complete` with prices and fees equal to Bybit's.

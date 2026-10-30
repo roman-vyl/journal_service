@@ -7,5 +7,5 @@
 
 ## 2. Rollout (on the owner's word only)
 
-- [ ] 2.1 PR and merge.
-- [ ] 2.2 bbb_stack `JOURNAL_IMAGE` pin as a separate PR; deploy on the owner's word.
+- [x] 2.1 PR and merge.
+- [x] 2.2 bbb_stack `JOURNAL_IMAGE` pin as a separate PR; deploy on the owner's word.
