@@ -19,6 +19,7 @@ dev = [
 
 [project.scripts]
 journal-service = "journal_service.main:main"
+journal-telegram = "journal_service.telegram:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

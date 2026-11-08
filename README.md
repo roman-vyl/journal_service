@@ -58,3 +58,64 @@ Checks: `ruff check .`, `ruff format --check .`, `mypy`, `pytest`.
 - `openspec/changes/runtime-live-entry-first-event-v1`: the first end-to-end event,
   Runtime `live_entry_evaluated` (including `desired_entry = null`).
   Producer side: `strategy_runtime` change `runtime-desired-entry-journal-v1`.
+
+Telegram entry-order and closed-trade publisher:
+
+```bash
+JOURNAL_DB_PATH=/path/to/journal/journal.sqlite3 \
+JOURNAL_TELEGRAM_STATE_PATH=/path/to/telegram/progress.sqlite3 \
+JOURNAL_TELEGRAM_BOT_TOKEN='<BotFather token>' \
+JOURNAL_TELEGRAM_CHAT_ID='<chat ID or @channel>' \
+journal-telegram
+# Alternatively: python -m journal_service.telegram
+```
+
+Create the bot with BotFather and add it to the destination chat/channel with
+permission to post. For a private chat, start the bot first. Keep the token in
+secret environment configuration. The publisher uses Telegram's
+[sendMessage API](https://core.telegram.org/bots/api#sendmessage).
+
+Run this as a separate process alongside the journal. It opens the journal database
+read-only and writes only its own progress database. No runtime source path is
+required. In Docker, override the image entrypoint with `journal-telegram`, disable
+the journal HTTP healthcheck for this worker, and mount the journal directory
+(including SQLite WAL/SHM files) and a persistent writable progress directory.
+
+On the first successful poll, the publisher saves the current end of the journal
+without sending historical trades. It then publishes only newly ingested
+`entry_package_applied` and `trade_cycle_closed` events, in ingestion order.
+Entry notifications confirm that an entry order was applied, not that it filled. On restart it resumes from the
+saved position, including entry orders and closures ingested while the worker was stopped.
+A closure message contains the recorded closure fields,
+strategy, closure timestamp, and matching `entry_package_applied` fields when
+available. Order parameters are labeled as such; they are not presented as actual
+fills or calculated PnL. Missing facts are not reconstructed. Messages exceeding
+the Telegram text limit are shortened.
+
+`JOURNAL_TELEGRAM_POLL_INTERVAL_S` defaults to 3 seconds; at most one message is
+sent per poll. Errors leave the event pending; flood-limit responses respect
+Telegram's `retry_after`. SIGTERM/SIGINT stop the worker. A process lock prevents
+concurrent workers using the same state file. Preserve that file across restarts;
+use one state file per journal and one worker per destination. Progress is stored
+per chat ID; a new destination starts at the current end of the journal as well.
+Deleting/replacing the journal requires a new progress file.
+
+Successful deliveries are checkpointed. Delivery is **at least once**: a timeout
+or crash after Telegram accepts a message but before the checkpoint is saved can
+cause a duplicate. Telegram does not provide an idempotency key for sendMessage.
+
+
+Telegram messages use Russian labels and Moscow time and omit technical IDs.
+Set `JOURNAL_TELEGRAM_SPECS_PATH` to a read-only mounted deployment catalog directory
+containing the original deployment JSON files (including historical deployments).
+The adapter matches the immutable strategy identity and shows the instrument,
+anchor period, width lookback and current minimum stack width in ATR.
+Missing metadata is displayed as unavailable, never inferred from the identity.
+For `trade_cycle_opened`, the adapter shows the first confirmed fill time and
+observed average entry price; a partial fill also opens a trade.
+For closures, it reads `net_return_pct` and `r_multiple` from the journal's
+`closed_trades` table. Percent is net PnL divided by entry notional, not account
+return. These figures include recorded trading fees. If the table exists, the
+closure stays pending until its row is complete; later messages also wait to
+preserve ingestion order. If the table or a metric is absent, the message shows
+“нет данных”. The adapter does not calculate financial results itself.
