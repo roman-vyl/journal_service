@@ -53,7 +53,10 @@ class TelegramConfig:
                     else None
                 ),
                 journal_path=Path(values["JOURNAL_DB_PATH"]),
-                state_path=Path(values["JOURNAL_TELEGRAM_STATE_PATH"]),
+                state_path=Path(
+                    values.get("JOURNAL_TELEGRAM_STATE_PATH")
+                    or str(Path(values["JOURNAL_DB_PATH"]).with_name("telegram-progress.sqlite3"))
+                ),
                 token=values["JOURNAL_TELEGRAM_BOT_TOKEN"],
                 chat_id=values["JOURNAL_TELEGRAM_CHAT_ID"],
                 poll_interval_s=float(values.get("JOURNAL_TELEGRAM_POLL_INTERVAL_S", "3")),
@@ -321,11 +324,12 @@ class Publisher:
         return True
 
 
-def run(config: TelegramConfig) -> None:
+def run(config: TelegramConfig, stop: Event | None = None) -> None:
     config.state_path.parent.mkdir(parents=True, exist_ok=True)
-    stop = Event()
-    signal.signal(signal.SIGTERM, lambda *_: stop.set())
-    signal.signal(signal.SIGINT, lambda *_: stop.set())
+    if stop is None:
+        stop = Event()
+        signal.signal(signal.SIGTERM, lambda *_: stop.set())
+        signal.signal(signal.SIGINT, lambda *_: stop.set())
     publisher = Publisher(config, TelegramClient(config.token, config.chat_id))
     with config.state_path.with_suffix(config.state_path.suffix + ".lock").open("a") as lock:
         try:
