@@ -1,5 +1,6 @@
 """End to end: a real process tails a ready journal, is stopped and restarted."""
 
+import contextlib
 import json
 import os
 import signal
@@ -81,3 +82,36 @@ def test_stop_and_restart_keeps_every_event_exactly_once(tmp_path: Path) -> None
     finally:
         connection.close()
     assert ids == ["e1", "e2", "e3"]
+
+
+def test_telegram_starts_and_stops_in_journal_process(tmp_path: Path, monkeypatch) -> None:
+    journal = tmp_path / "runtime.jsonl"
+    db = tmp_path / "journal.sqlite3"
+    append(journal, live_entry("signal"))
+    monkeypatch.setenv("JOURNAL_TELEGRAM_BOT_TOKEN", "test-token")
+    monkeypatch.setenv("JOURNAL_TELEGRAM_CHAT_ID", "123")
+    monkeypatch.delenv("JOURNAL_TELEGRAM_STATE_PATH", raising=False)
+    port = _free_port()
+    process = _start(journal, db, port)
+    progress = db.with_name("telegram-progress.sqlite3")
+    try:
+        _wait_for(port, 1)
+        deadline = time.monotonic() + 5
+        subscribed = False
+        while time.monotonic() < deadline:
+            if progress.exists():
+                with (
+                    sqlite3.connect(progress) as state,
+                    contextlib.suppress(sqlite3.OperationalError),
+                ):
+                    subscribed = (
+                        state.execute("SELECT 1 FROM progress WHERE chat_id='123'").fetchone()
+                        is not None
+                    )
+                if subscribed:
+                    break
+            time.sleep(0.05)
+        assert subscribed, "Telegram did not start with the journal"
+    finally:
+        process.send_signal(signal.SIGTERM)
+        assert process.wait(timeout=15) == 0

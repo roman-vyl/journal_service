@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import signal
 from threading import Event, Thread
 
@@ -12,6 +13,8 @@ from journal_service.health import build_server
 from journal_service.stats import IngestStats
 from journal_service.storage import Store
 from journal_service.tailer import Tailer
+from journal_service.telegram import TelegramConfig
+from journal_service.telegram import run as run_telegram
 from journal_service.trades import TradeBuilder, TradesStats
 
 _LOGGER = logging.getLogger("journal_service")
@@ -36,6 +39,9 @@ def _build_forever(builder: TradeBuilder, stop: Event, interval_s: float) -> Non
 
 
 def run(config: Config) -> None:
+    telegram_config = None
+    if os.environ.get("JOURNAL_TELEGRAM_BOT_TOKEN") or os.environ.get("JOURNAL_TELEGRAM_CHAT_ID"):
+        telegram_config = TelegramConfig.from_env()
     store = Store(config.db_path)
     cursor = store.get_cursor(RUNTIME_SOURCE_NAME)
     stats = IngestStats(
@@ -70,14 +76,23 @@ def run(config: Config) -> None:
 
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
+    telegram_worker = (
+        Thread(target=run_telegram, args=(telegram_config, stop), name="telegram")
+        if telegram_config is not None
+        else None
+    )
     worker.start()
     trades_worker.start()
+    if telegram_worker is not None:
+        telegram_worker.start()
     try:
         server.serve_forever()
     finally:
         stop.set()
         worker.join()
         trades_worker.join()
+        if telegram_worker is not None:
+            telegram_worker.join()
         server.server_close()
         store.close()
 

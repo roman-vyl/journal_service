@@ -75,11 +75,24 @@ permission to post. For a private chat, start the bot first. Keep the token in
 secret environment configuration. The publisher uses Telegram's
 [sendMessage API](https://core.telegram.org/bots/api#sendmessage).
 
-Run this as a separate process alongside the journal. It opens the journal database
-read-only and writes only its own progress database. No runtime source path is
-required. In Docker, override the image entrypoint with `journal-telegram`, disable
-the journal HTTP healthcheck for this worker, and mount the journal directory
-(including SQLite WAL/SHM files) and a persistent writable progress directory.
+The standard `journal-service` entrypoint automatically starts Telegram in the same
+process/container when `JOURNAL_TELEGRAM_BOT_TOKEN` and `JOURNAL_TELEGRAM_CHAT_ID`
+are set. Without either variable Telegram is disabled. Set both or startup fails
+with a configuration error. No extra container or entrypoint override is needed.
+The progress file defaults to `telegram-progress.sqlite3` beside `JOURNAL_DB_PATH`,
+on the same persistent writable volume. `JOURNAL_TELEGRAM_STATE_PATH` overrides it.
+The worker reads the journal database and writes only its own progress database.
+`journal-telegram` remains available as a standalone worker.
+
+Docker Compose: add these variables to the existing journal service's `environment`:
+
+```yaml
+JOURNAL_TELEGRAM_BOT_TOKEN: ${JOURNAL_TELEGRAM_BOT_TOKEN}
+JOURNAL_TELEGRAM_CHAT_ID: ${JOURNAL_TELEGRAM_CHAT_ID}
+```
+
+Put their actual values in the stack's private `.env` file, then recreate the journal
+container with the updated image. Do not commit the token to Git.
 
 On the first successful poll, the publisher saves the current end of the journal
 without sending historical trades. It then publishes only newly ingested
